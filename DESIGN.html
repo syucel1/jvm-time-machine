@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JVM Time Machine · Design</title>
+<style>
+:root{
+  --bg:#f7f8fa; --surface:#ffffff; --surface-2:#f1f3f6; --border:#e3e6eb;
+  --text:#14171c; --muted:#5d6673; --accent:#3b6cf6; --accent-soft:#e8eefe;
+  --good:#1f9d63; --warn:#c98a10; --bad:#d64545; --code:#eef1f5;
+  --shadow:0 1px 2px rgba(16,24,40,.04),0 4px 16px rgba(16,24,40,.06);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1115; --surface:#161a20; --surface-2:#1c2129; --border:#2a313b;
+    --text:#e8ebf0; --muted:#9aa4b2; --accent:#7c9dff; --accent-soft:#1d2840;
+    --good:#4cc38a; --warn:#e5b44a; --bad:#f07070; --code:#1f252e; --shadow:none;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f1115; --surface:#161a20; --surface-2:#1c2129; --border:#2a313b;
+  --text:#e8ebf0; --muted:#9aa4b2; --accent:#7c9dff; --accent-soft:#1d2840;
+  --good:#4cc38a; --warn:#e5b44a; --bad:#f07070; --code:#1f252e; --shadow:none;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--text);
+  font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif}
+a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+code{font:13px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:var(--code);padding:1px 6px;border-radius:5px}
+pre{background:var(--code);padding:14px 16px;border-radius:10px;overflow:auto;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+pre code{background:none;padding:0}
+.layout{display:grid;grid-template-columns:240px minmax(0,1fr);min-height:100vh}
+nav.side{position:sticky;top:0;height:100vh;overflow:auto;padding:24px 16px;border-right:1px solid var(--border);background:var(--surface)}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:15px;margin:0 8px 20px}
+.logo{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,var(--accent),#9b5cf6);display:grid;place-items:center;color:#fff;font-size:15px}
+nav.side a{display:block;padding:6px 10px;border-radius:8px;color:var(--muted);font-size:14px}
+nav.side a:hover{background:var(--surface-2);color:var(--text);text-decoration:none}
+nav.side a.active{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.side-foot{margin:20px 10px 0;font-size:12px;color:var(--muted)}
+main{padding:40px 48px 80px;max-width:1080px}
+.hero{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px;box-shadow:var(--shadow);margin-bottom:32px;position:relative;overflow:hidden}
+.hero:after{content:"";position:absolute;right:-80px;top:-80px;width:260px;height:260px;border-radius:50%;background:radial-gradient(circle,var(--accent-soft),transparent 70%)}
+.hero h1{margin:8px 0 8px;font-size:32px;letter-spacing:-.02em;line-height:1.2}
+.hero p{color:var(--muted);max-width:680px;margin:0;font-size:16px}
+.pills{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px;position:relative;z-index:1}
+.pill{font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px;background:var(--surface-2);color:var(--muted);border:1px solid var(--border)}
+.pill.accent{background:var(--accent-soft);color:var(--accent);border-color:transparent}
+section{margin:0 0 40px;scroll-margin-top:24px}
+h2{font-size:22px;letter-spacing:-.01em;margin:0 0 6px}
+.lead{color:var(--muted);margin:0 0 18px}
+h3{font-size:16px;margin:22px 0 8px}
+.grid{display:grid;gap:14px}
+.g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.g5{grid-template-columns:repeat(5,minmax(0,1fr))}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px;box-shadow:var(--shadow)}
+.card h4{margin:0 0 4px;font-size:15px}
+.card p{margin:0;color:var(--muted);font-size:14px}
+.card .num{font-size:12px;font-weight:700;color:var(--accent);letter-spacing:.04em;text-transform:uppercase}
+.table-wrap{overflow:auto;border:1px solid var(--border);border-radius:12px;background:var(--surface);box-shadow:var(--shadow)}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:top}
+th{background:var(--surface-2);font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:600}
+tr:last-child td{border-bottom:none}
+.tag{display:inline-block;font-size:12px;font-weight:600;padding:2px 8px;border-radius:6px}
+.tag.ok{background:color-mix(in srgb,var(--good) 15%,transparent);color:var(--good)}
+.tag.no{background:color-mix(in srgb,var(--bad) 13%,transparent);color:var(--bad)}
+.tag.later{background:color-mix(in srgb,var(--warn) 15%,transparent);color:var(--warn)}
+.diagram{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:16px;box-shadow:var(--shadow)}
+.diagram svg{width:100%;height:auto;display:block}
+.callout{border-left:3px solid var(--accent);background:var(--accent-soft);padding:12px 16px;border-radius:0 10px 10px 0;margin:16px 0;font-size:14px}
+.flow{counter-reset:s;list-style:none;padding:0;margin:0}
+.flow li{counter-increment:s;position:relative;padding:0 0 10px 34px;font-size:14px}
+.flow li:before{content:counter(s);position:absolute;left:0;top:1px;width:22px;height:22px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-size:12px;font-weight:700;display:grid;place-items:center}
+.phase{display:flex;flex-direction:column;gap:6px}
+.phase .gate{margin-top:auto;font-size:12px;color:var(--muted);border-top:1px dashed var(--border);padding-top:8px}
+.theme-btn{position:fixed;top:16px;right:16px;z-index:5;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:10px;padding:6px 10px;font-size:13px;cursor:pointer;box-shadow:var(--shadow)}
+.checklist{list-style:none;padding:0;margin:0}
+.checklist li{padding:6px 0 6px 28px;position:relative;font-size:14px;border-bottom:1px solid var(--border)}
+.checklist li:last-child{border:none}
+.checklist li:before{content:"";position:absolute;left:4px;top:10px;width:14px;height:14px;border:1.5px solid var(--muted);border-radius:4px}
+footer{color:var(--muted);font-size:13px;border-top:1px solid var(--border);padding-top:16px}
+@media (max-width:900px){
+  .layout{grid-template-columns:minmax(0,1fr)}
+  nav.side{position:static;height:auto;border-right:none;border-bottom:1px solid var(--border)}
+  main{padding:24px 16px 60px}
+  .g2,.g3,.g5{grid-template-columns:1fr}
+  .hero{padding:22px}
+  .hero h1{font-size:26px}
+}
+</style>
+</head>
+<body>
+<button class="theme-btn" id="themeBtn" aria-label="Toggle theme">◐ Theme</button>
+<div class="layout">
+<nav class="side" id="nav">
+  <div class="brand"><div class="logo">⟲</div>JVM Time Machine</div>
+  <a href="#summary">Summary &amp; goals</a>
+  <a href="#nongoals">Non-goals &amp; constraints</a>
+  <a href="#architecture">Architecture</a>
+  <a href="#components">Components</a>
+  <a href="#data">Data model</a>
+  <a href="#ui">UI decision</a>
+  <a href="#flows">Key flows</a>
+  <a href="#overhead">Overhead &amp; safety</a>
+  <a href="#priorart">Prior art</a>
+  <a href="#roadmap">Roadmap</a>
+  <a href="#risks">Risks &amp; questions</a>
+  <div class="side-foot">Design doc v0.1 · Draft<br>4 Nov 2026</div>
+</nav>
+
+<main>
+<header class="hero">
+  <span class="pill accent">Design · v0.1 draft</span>
+  <h1>JVM Time Machine</h1>
+  <p>Rewind a running JVM to any moment in the last 30 minutes and see what it was doing: threads, hot code, heap, GC, locks and in-flight requests. Built on JDK Flight Recorder, always on, at 2% overhead or less.</p>
+  <div class="pills">
+    <span class="pill">JFR-based</span><span class="pill">Java 17+</span><span class="pill">Browser UI</span><span class="pill">Apache 2.0</span><span class="pill">Production-safe</span>
+  </div>
+</header>
+
+<section id="summary">
+  <h2>Summary &amp; goals</h2>
+  <p class="lead">A free, always-on "dashcam" for the JVM. It combines JFR, a profiler, periodic snapshots, request context and incident triggers on one time axis.</p>
+  <h3>Problems it solves</h3>
+  <div class="grid g3">
+    <div class="card"><h4>Incidents vanish</h4><p>By the time someone attaches a profiler, the spike is over.</p></div>
+    <div class="card"><h4>JFR has gaps</h4><p>No request view, no time diff, no automatic incident capture, no fleet view.</p></div>
+    <div class="card"><h4>Profilers are for dev</h4><p>JProfiler and YourKit are excellent, but they aren't made to run always-on in production.</p></div>
+  </div>
+  <h3>Goals</h3>
+  <div class="grid g5">
+    <div class="card"><div class="num">01</div><h4>Dashcam</h4><p>Rolling 30-min buffer, frozen when a trigger fires.</p></div>
+    <div class="card"><div class="num">02</div><h4>Scrub</h4><p>Full JVM state at any second on one timeline.</p></div>
+    <div class="card"><div class="num">03</div><h4>Diff</h4><p>"What changed between A and B?" as differential flame graphs.</p></div>
+    <div class="card"><div class="num">04</div><h4>Request replay</h4><p>Rebuild one request's life from its trace ID.</p></div>
+    <div class="card"><div class="num">05</div><h4>Explain</h4><p>An incident summary readable in 2 minutes, optionally AI-written.</p></div>
+  </div>
+</section>
+
+<section id="nongoals">
+  <h2>Non-goals &amp; constraints</h2>
+  <p class="lead">v1 does not do full deterministic record-and-replay, does not replace APM/metrics platforms, and does not support non-JVM runtimes.</p>
+  <div class="table-wrap"><table>
+    <tr><th>Constraint</th><th>Target</th></tr>
+    <tr><td>Steady-state overhead</td><td>≤ 2% CPU, &lt; 50 MB extra heap</td></tr>
+    <tr><td>JDK support</td><td>17+ first-class; 11 best effort; 8u262+ file import only</td></tr>
+    <tr><td>Licence</td><td>Apache 2.0, only free dependencies</td></tr>
+    <tr><td>Deployment</td><td>Single-JAR agent; works without the collector, writing to local disk</td></tr>
+    <tr><td>Data safety</td><td>No arguments or payloads captured unless enabled per package</td></tr>
+  </table></div>
+</section>
+
+<section id="architecture">
+  <h2>Architecture</h2>
+  <p class="lead">Three tiers: <b>tm-agent</b> in every JVM, a <b>tm-collector</b> service, and clients led by the browser UI. Data flows one way; the agent keeps working if the collector is down.</p>
+  <div class="diagram">
+  <svg viewBox="0 0 760 700" role="img" aria-label="Component diagram: agent, collector, clients" font-family="inherit" font-size="13">
+    <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--muted)"/></marker></defs>
+    <style>
+      .ct{fill:var(--surface-2);stroke:var(--border)}
+      .bx{fill:var(--surface);stroke:var(--muted);stroke-opacity:.55}
+      .ac{fill:var(--accent-soft);stroke:var(--accent);stroke-width:2}
+      .nm{fill:var(--text);font-weight:600;text-anchor:middle}
+      .bd{fill:var(--muted);font-size:11.5px;text-anchor:middle}
+      .cn{fill:var(--text);font-weight:600}
+      .cq{fill:var(--muted);font-size:11.5px}
+      .ln{fill:none;stroke:var(--muted);stroke-width:1.25}
+      .lb{fill:var(--muted);font-size:11.5px}
+    </style>
+    <!-- JVM -->
+    <rect class="ct" x="24" y="16" width="712" height="244" rx="10"/>
+    <text class="cn" x="40" y="38">Target JVM (one per service instance)</text>
+    <rect x="40" y="52" width="680" height="192" rx="8" fill="none" stroke="var(--muted)" stroke-opacity=".55"/>
+    <text class="cn" x="56" y="74">tm-agent</text><text class="cq" x="124" y="74">single JAR, -javaagent or runtime attach</text>
+    <rect class="bx" x="56" y="92" width="150" height="56" rx="8"/><text class="nm" x="131" y="116">JFR recorder</text><text class="bd" x="131" y="132">RecordingStream</text>
+    <rect class="bx" x="222" y="92" width="150" height="56" rx="8"/><text class="nm" x="297" y="116">Profiler bridge</text><text class="bd" x="297" y="132">async-profiler</text>
+    <rect class="bx" x="388" y="92" width="150" height="56" rx="8"/><text class="nm" x="463" y="116">Snapshotter</text><text class="bd" x="463" y="132">threads, heap / 10 s</text>
+    <rect class="bx" x="554" y="92" width="150" height="56" rx="8"/><text class="nm" x="629" y="116">Context capture</text><text class="bd" x="629" y="132">ByteBuddy + OTel</text>
+    <rect class="bx" x="56" y="172" width="190" height="56" rx="8"/><text class="nm" x="151" y="196">Trigger engine</text><text class="bd" x="151" y="212">rules: freeze + boost</text>
+    <rect class="bx" x="285" y="172" width="190" height="56" rx="8"/><text class="nm" x="380" y="196">Local ring buffer</text><text class="bd" x="380" y="212">JFR chunks, 30 min</text>
+    <rect class="bx" x="514" y="172" width="190" height="56" rx="8"/><text class="nm" x="609" y="196">Shipper</text><text class="bd" x="609" y="212">batches to collector</text>
+    <!-- Collector -->
+    <rect class="ct" x="24" y="300" width="712" height="228" rx="10"/>
+    <text class="cn" x="40" y="322">tm-collector</text><text class="cq" x="136" y="322">service; embedded in tm-cli for offline use</text>
+    <rect class="bx" x="40" y="340" width="200" height="72" rx="8"/><text class="nm" x="140" y="364">Query API</text><text class="bd" x="140" y="380">REST + WebSocket</text><text class="bd" x="140" y="396">windows, diffs, requests</text>
+    <rect class="bx" x="280" y="340" width="200" height="72" rx="8"/><text class="nm" x="380" y="364">Event store</text><text class="bd" x="380" y="380">Parquet/DuckDB, ClickHouse</text><text class="bd" x="380" y="396">blobs: heap dumps, .jfr</text>
+    <rect class="bx" x="520" y="340" width="200" height="72" rx="8"/><text class="nm" x="620" y="364">Ingest + JFR parser</text><text class="bd" x="620" y="380">JFR to columns, indexed</text><text class="bd" x="620" y="396">by time, JVM, thread, trace</text>
+    <rect class="bx" x="280" y="440" width="200" height="72" rx="8"/><text class="nm" x="380" y="464">Analyzer</text><text class="bd" x="380" y="480">diffs, anomaly rules</text><text class="bd" x="380" y="496">incident report, AI opt-in</text>
+    <!-- Clients -->
+    <rect class="ac" x="24" y="568" width="166" height="72" rx="8"/><text class="nm" x="107" y="592">tm-ui (browser)</text><text class="bd" x="107" y="608" style="fill:var(--text)">scrubber, flame graphs</text><text class="bd" x="107" y="624" style="fill:var(--text)">diff + request views</text>
+    <rect class="bx" x="206" y="568" width="166" height="72" rx="8"/><text class="nm" x="289" y="592">tm-cli</text><text class="bd" x="289" y="608">opens .jfr and</text><text class="bd" x="289" y="624">incident bundles</text>
+    <rect class="bx" x="388" y="568" width="166" height="72" rx="8"/><text class="nm" x="471" y="592">JMC / JProfiler</text><text class="bd" x="471" y="608">deep dives on any</text><text class="bd" x="471" y="624">exported window</text>
+    <rect class="bx" x="570" y="568" width="166" height="72" rx="8"/><text class="nm" x="653" y="592">Alerts</text><text class="bd" x="653" y="608">Slack / webhook</text><text class="bd" x="653" y="624">with incident link</text>
+    <!-- connectors -->
+    <path class="ln" d="M131 148V158M297 148V158M463 148V158M629 148V158M131 158H629"/>
+    <path class="ln" d="M380 158V172" marker-end="url(#ar)"/>
+    <path class="ln" d="M246 200H285" marker-end="url(#ar)"/>
+    <path class="ln" d="M475 200H514" marker-end="url(#ar)"/>
+    <path class="ln" d="M609 228V340" marker-end="url(#ar)"/>
+    <path class="ln" d="M520 376H480" marker-end="url(#ar)"/>
+    <path class="ln" d="M280 376H240" marker-end="url(#ar)"/>
+    <path class="ln" d="M380 412V440" marker-end="url(#ar)"/>
+    <path class="ln" d="M280 476H200V412" marker-end="url(#ar)"/>
+    <path class="ln" d="M100 412V568" marker-end="url(#ar)"/>
+    <path class="ln" d="M289 528V568" stroke-dasharray="4 4"/>
+    <path class="ln" d="M471 528V568" marker-end="url(#ar)"/>
+    <path class="ln" d="M480 476H653V568" marker-end="url(#ar)"/>
+    <text class="lb" x="601" y="286" text-anchor="end">JFR chunks + snapshots over HTTP/2</text>
+    <text class="lb" x="108" y="552">queries</text>
+    <text class="lb" x="297" y="552">embeds</text>
+    <text class="lb" x="479" y="552">.jfr export</text>
+    <text class="lb" x="661" y="552">incidents</text>
+    <text class="lb" x="24" y="676">Recorders feed the ring buffer → trigger engine freezes it on incidents → shipper sends to the collector → UI, CLI, export and alerts read from it.</text>
+  </svg>
+  </div>
+</section>
+
+<section id="components">
+  <h2>Components</h2>
+  <p class="lead">The agent runs inside each JVM and works alone when no collector is configured.</p>
+  <div class="table-wrap"><table>
+    <tr><th>Component</th><th>Runs in</th><th>Responsibility</th><th>Built on</th></tr>
+    <tr><td><b>tm-agent</b></td><td>Target JVM</td><td>Starts recorders, owns the ring buffer, runs triggers, ships data</td><td>Java 17, <code>java.lang.instrument</code>, Attach API</td></tr>
+    <tr><td>JFR recorder</td><td>tm-agent</td><td>Continuous recording with a custom <code>.jfc</code>; live event streaming</td><td><code>RecordingStream</code></td></tr>
+    <tr><td>Profiler bridge</td><td>tm-agent</td><td>Wall-clock and native stacks on demand</td><td>async-profiler</td></tr>
+    <tr><td>Snapshotter</td><td>tm-agent</td><td>Thread dump, class histogram, heap stats every 10 s</td><td><code>ThreadMXBean</code>, DiagnosticCommand MBean</td></tr>
+    <tr><td>Context capture</td><td>tm-agent</td><td>JFR events for HTTP, JDBC, Kafka, tagged with trace/span IDs</td><td>ByteBuddy, OpenTelemetry</td></tr>
+    <tr><td>Trigger engine</td><td>tm-agent</td><td>Rules on the live stream; freeze buffer, heap dump, boost sampling for 2 min</td><td>YAML rule DSL</td></tr>
+    <tr><td>Local ring buffer</td><td>tm-agent</td><td>JFR chunks + snapshots on disk (30 min, 500 MB)</td><td>JFR disk repository</td></tr>
+    <tr><td>Shipper</td><td>tm-agent</td><td>Sends to the collector with backoff; bounded queue</td><td>HTTP/2, gzip</td></tr>
+    <tr><td><b>tm-collector</b></td><td>Service</td><td>Receives data from many JVMs, parses, indexes</td><td>Java 21</td></tr>
+    <tr><td>Event store</td><td>tm-collector</td><td>Columnar events + blobs (heap dumps, raw chunks)</td><td>Parquet/DuckDB, ClickHouse, S3</td></tr>
+    <tr><td>Query API</td><td>tm-collector</td><td>Windows, diffs, request reconstruction, flame graphs</td><td>REST + WebSocket</td></tr>
+    <tr><td>Analyzer</td><td>tm-collector</td><td>Diff engine, anomaly detection, incident reports, optional LLM summary</td><td>Java; LLM API opt-in</td></tr>
+    <tr><td><b>tm-ui</b></td><td>Browser</td><td>Timeline scrubber, flame graphs, diff, request view, incidents</td><td>TypeScript, React, Canvas/WebGL</td></tr>
+    <tr><td><b>tm-cli</b></td><td>Laptop</td><td>Opens <code>.jfr</code> or incident bundles offline and serves the UI</td><td>Embedded collector</td></tr>
+  </table></div>
+</section>
+
+<section id="data">
+  <h2>Data model</h2>
+  <p class="lead">Everything is an event on one shared time axis, keyed by <code>(jvm_id, timestamp, thread_id)</code> and optionally <code>trace_id</code>. That one key is what makes scrubbing, diffs and request reconstruction cheap.</p>
+  <div class="table-wrap"><table>
+    <tr><th>Table</th><th>Grain</th><th>Key columns</th><th>Source</th></tr>
+    <tr><td><code>events</code></td><td>One row per JFR event</td><td>jvm_id, ts, duration, event_type, thread_id, stack_id, trace_id, attrs</td><td>JFR, custom events</td></tr>
+    <tr><td><code>stacks</code></td><td>One row per unique stack</td><td>stack_id, frames[]</td><td>JFR, async-profiler</td></tr>
+    <tr><td><code>snapshots</code></td><td>One row per snapshot</td><td>jvm_id, ts, kind, payload</td><td>Snapshotter</td></tr>
+    <tr><td><code>incidents</code></td><td>One row per trigger fire</td><td>incident_id, jvm_id, ts, rule, window, artifacts[]</td><td>Trigger engine</td></tr>
+    <tr><td><code>artifacts</code></td><td>Blobs</td><td>heap dumps, raw <code>.jfr</code>, flame graphs</td><td>Object storage</td></tr>
+  </table></div>
+  <div class="callout">Raw <code>.jfr</code> chunks are always kept, so any window can be exported and opened in JMC or JProfiler. Stacks are deduplicated by hash. Retention: 30 min on the agent, 7 days in the collector, incidents until deleted.</div>
+</section>
+
+<section id="ui">
+  <h2>UI decision: browser, not Swing</h2>
+  <p class="lead">The core interaction is dragging a scrubber over millions of events and redrawing flame graphs at 60 fps. That needs GPU-backed Canvas/WebGL, which is mature in browsers. Sharing an incident by URL matters for on-call teams.</p>
+  <div class="table-wrap"><table>
+    <tr><th>Option</th><th>Pros</th><th>Cons</th><th>Verdict</th></tr>
+    <tr><td><b>Browser (React + Canvas/WebGL)</b></td><td>Zero install, one UI everywhere, share by link, best charting libraries, embeddable</td><td>Needs a server process; large timelines need virtualisation</td><td><span class="tag ok">Chosen</span></td></tr>
+    <tr><td>Swing</td><td>Pure Java, offline</td><td>Dated look, weak charting, no sharing, JMC already covers desktop</td><td><span class="tag no">Rejected</span></td></tr>
+    <tr><td>JavaFX</td><td>Nicer than Swing</td><td>Separate runtime, small ecosystem, no sharing</td><td><span class="tag no">Rejected</span></td></tr>
+    <tr><td>Tauri/Electron wrapper</td><td>Offline desktop app, same code</td><td>Packaging and updates; little gain over tm-cli</td><td><span class="tag later">Later</span></td></tr>
+    <tr><td>IntelliJ plugin</td><td>Jump from hot frame to source</td><td>IDE users only</td><td><span class="tag later">Beyond v1.0</span></td></tr>
+  </table></div>
+</section>
+
+<section id="flows">
+  <h2>Key flows</h2>
+  <div class="grid g2">
+    <div class="card"><h4>1 · Continuous recording</h4><ol class="flow">
+      <li>Agent starts JFR with <code>timemachine.jfc</code> and a <code>RecordingStream</code>.</li>
+      <li>Every 10 s, snapshots are added as custom JFR events in the same stream.</li>
+      <li>Chunks roll in the 30-min disk buffer; the shipper streams them out if a collector is configured.</li></ol></div>
+    <div class="card"><h4>2 · Incident trigger</h4><ol class="flow">
+      <li>A rule matches, e.g. <code>gc.pause &gt; 500ms</code> or <code>p99(http) &gt; 2s</code>.</li>
+      <li>Agent freezes the last 30 min and boosts detail for 2 min.</li>
+      <li>Writes a <code>.tmz</code> bundle (JFR + snapshots + metadata) and ships it.</li>
+      <li>Analyzer builds the report and notifies Slack/webhook.</li></ol></div>
+    <div class="card"><h4>3 · Timeline scrub</h4><ol class="flow">
+      <li>UI loads per-second aggregates for the window.</li>
+      <li>On drag, it fetches that second's threads, stacks, requests and events.</li>
+      <li>Detail is fetched lazily and cached for smooth dragging.</li></ol></div>
+    <div class="card"><h4>4 · Time diff</h4><ol class="flow">
+      <li>User picks window A (normal) and B (bad).</li>
+      <li>Analyzer aggregates samples per stack, normalises by duration, subtracts.</li>
+      <li>UI shows a differential flame graph and event deltas.</li></ol></div>
+    <div class="card"><h4>5 · Request reconstruction</h4><ol class="flow">
+      <li>User pastes a trace ID from logs or APM.</li>
+      <li>API selects events with that <code>trace_id</code> plus same-thread events in its span.</li>
+      <li>UI draws a lane per thread with SQL, HTTP and lock spans.</li></ol></div>
+  </div>
+</section>
+
+<section id="overhead">
+  <h2>Overhead &amp; safety</h2>
+  <p class="lead">Budget: ≤ 2% CPU in steady state. Anything heavier than JFR defaults is sampled, or runs only after a trigger fires. Costs below are estimates to verify in benchmarks.</p>
+  <div class="table-wrap"><table>
+    <tr><th>Source</th><th>Mode</th><th>Estimated cost</th></tr>
+    <tr><td>JFR default events</td><td>Always on</td><td>~1%</td></tr>
+    <tr><td>Extra JFR events (allocation sampling, I/O ≥ 20 ms)</td><td>Always on</td><td>+0.3–0.5%</td></tr>
+    <tr><td>Snapshotter</td><td>Every 10 s</td><td>&lt; 0.2%</td></tr>
+    <tr><td>Context instrumentation</td><td>Chosen packages</td><td>&lt; 0.3%</td></tr>
+    <tr><td>async-profiler wall-clock</td><td>Triggered, 2 min</td><td>2–5% while active</td></tr>
+    <tr><td>Heap dump</td><td>Triggered, max 1/hour, opt-in</td><td>Pauses for seconds</td></tr>
+  </table></div>
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card"><h4>Circuit breaker</h4><p>Agent CPU &gt; 3% for 60 s → drop to plain JFR and report it.</p></div>
+    <div class="card"><h4>Bounded memory</h4><p>32 MB shipper queue; drop the oldest data, never block app threads.</p></div>
+    <div class="card"><h4>Privacy</h4><p>Arguments, bind values and bodies are off by default; SQL literals are stripped.</p></div>
+    <div class="card"><h4>Kill switch</h4><p>JMX <code>TimeMachine.stop()</code> or a config flag leaves only plain JFR.</p></div>
+  </div>
+</section>
+
+<section id="priorart">
+  <h2>Prior art &amp; positioning</h2>
+  <p class="lead">No free tool combines always-on capture, a timeline scrubber, time diffs and request reconstruction for the JVM.</p>
+  <div class="table-wrap"><table>
+    <tr><th>Tool</th><th>Strength</th><th>Missing for us</th><th>Cost</th></tr>
+    <tr><td>JFR + JMC</td><td>Low overhead, deep JVM data</td><td>Desktop only; no fleet, triggers, diffs, request view</td><td>Free</td></tr>
+    <tr><td>JProfiler / YourKit</td><td>Heap walker, probes, polished UI</td><td>Dev-focused; no time scrubbing</td><td>Paid</td></tr>
+    <tr><td>async-profiler</td><td>Accurate CPU / native flame graphs</td><td>One-shot; no timeline</td><td>Free</td></tr>
+    <tr><td>Datadog / Pyroscope</td><td>Fleet continuous profiling</td><td>CPU/alloc focus; no per-second JVM state</td><td>Paid / self-host</td></tr>
+    <tr><td>Cryostat</td><td>JFR management on Kubernetes</td><td>Management, not analysis</td><td>Free</td></tr>
+    <tr><td>Undo, Chronon</td><td>True record-and-replay</td><td>Too heavy for always-on</td><td>Paid / gone</td></tr>
+  </table></div>
+</section>
+
+<section id="roadmap">
+  <h2>Roadmap</h2>
+  <p class="lead">10 phases from design to v1.0; each delivers something usable and ends with an exit gate. Details: <a href="ROADMAP.html">ROADMAP.html</a>.</p>
+  <div class="grid g5">
+    <div class="card phase"><div class="num">Phase 1 · Done</div><h4>Design</h4><p>Goals, architecture, UI decision.</p><div class="gate">◆ Design agreed</div></div>
+    <div class="card phase"><div class="num">Phase 2</div><h4>Foundations</h4><p>Build, CI, event model, demo app.</p><div class="gate">◆ demo.jfr parsed in CI</div></div>
+    <div class="card phase"><div class="num">Phase 3</div><h4>Offline viewer</h4><p>tm-cli + query API on a .jfr file.</p><div class="gate">◆ Window queries work</div></div>
+    <div class="card phase"><div class="num">Phase 4</div><h4>Timeline UI</h4><p>Scrubber, overview lanes, flame graph.</p><div class="gate">◆ Explains demo.jfr</div></div>
+    <div class="card phase"><div class="num">Phase 5</div><h4>Time diff</h4><p>Compare two windows.</p><div class="gate">◆ Finds a regression</div></div>
+    <div class="card phase"><div class="num">Phase 6</div><h4>Always-on agent</h4><p>Rolling buffer, snapshots, JMX.</p><div class="gate">◆ 24 h stable run</div></div>
+    <div class="card phase"><div class="num">Phase 7</div><h4>Incident capture</h4><p>Triggers, bundles, overhead control.</p><div class="gate">◆ Overhead ≤ 2%</div></div>
+    <div class="card phase"><div class="num">Phase 8</div><h4>Collector &amp; fleet</h4><p>Central service, multi-JVM, alerts.</p><div class="gate">◆ 3 teams in prod</div></div>
+    <div class="card phase"><div class="num">Phase 9</div><h4>Request context</h4><p>Trace IDs, request timeline.</p><div class="gate">◆ Slow request explained</div></div>
+    <div class="card phase"><div class="num">Phase 10</div><h4>Intelligence &amp; v1.0</h4><p>AI summary, hardening, packaging.</p><div class="gate">◆ v1.0.0 released</div></div>
+  </div>
+</section>
+
+<section id="risks">
+  <h2>Risks &amp; open questions</h2>
+  <div class="table-wrap"><table>
+    <tr><th>Risk</th><th>Mitigation</th></tr>
+    <tr><td>Overhead &gt; 2% on busy services</td><td>Benchmark gate on every release; circuit breaker</td></tr>
+    <tr><td>Fleet data volume</td><td>Stack dedup, hourly Parquet, per-second rollups, short raw retention</td></tr>
+    <tr><td>async-profiler native packaging</td><td>Optional module; JFR-only mode is complete</td></tr>
+    <tr><td>Instrumentation breaks on framework upgrades</td><td>Reuse OpenTelemetry instrumentation and read its context</td></tr>
+    <tr><td>Sensitive data in events</td><td>Redaction on the agent before data leaves the JVM</td></tr>
+  </table></div>
+  <h3>Open questions</h3>
+  <ul class="checklist">
+    <li>Depend on the OpenTelemetry Java agent, or own lightweight context capture?</li>
+    <li>DuckDB first and ClickHouse later, or ClickHouse from the start?</li>
+    <li>Is the AI summary in v1, and which LLM API is acceptable for incident data?</li>
+    <li>Minimum agent JDK: 17 or 21?</li>
+    <li>Final project name (trademark check).</li>
+  </ul>
+</section>
+
+<footer>JVM Time Machine · Design v0.1 · See also <a href="README.md">README.md</a> and <a href="ROADMAP.md">ROADMAP.md</a></footer>
+</main>
+</div>
+<script>
+(function(){
+  var root=document.documentElement, btn=document.getElementById('themeBtn');
+  try{var t=localStorage.getItem('tm-theme'); if(t) root.setAttribute('data-theme',t);}catch(e){}
+  btn.addEventListener('click',function(){
+    var cur=root.getAttribute('data-theme') || (matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');
+    var next=cur==='dark'?'light':'dark'; root.setAttribute('data-theme',next);
+    try{localStorage.setItem('tm-theme',next);}catch(e){}
+  });
+  var links=[].slice.call(document.querySelectorAll('nav.side a'));
+  var obs=new IntersectionObserver(function(es){es.forEach(function(e){
+    if(e.isIntersecting){links.forEach(function(l){l.classList.toggle('active',l.getAttribute('href')==='#'+e.target.id);});}
+  });},{rootMargin:'-20% 0px -70% 0px'});
+  document.querySelectorAll('main section').forEach(function(s){obs.observe(s);});
+})();
+</script>
+</body>
+</html>

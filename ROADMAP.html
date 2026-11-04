@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JVM Time Machine · Roadmap</title>
+<style>
+:root{
+  --bg:#f7f8fa; --surface:#fff; --surface-2:#f1f3f6; --border:#e3e6eb;
+  --text:#14171c; --muted:#5d6673; --accent:#3b6cf6;
+  --s1:#3b6cf6; --s2:#8b5cf6; --s3:#0e9f8e; --done:#1f9d63;
+  --shadow:0 1px 2px rgba(16,24,40,.04),0 4px 16px rgba(16,24,40,.06);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1115; --surface:#161a20; --surface-2:#1c2129; --border:#2a313b;
+    --text:#e8ebf0; --muted:#9aa4b2; --accent:#7c9dff;
+    --s1:#7c9dff; --s2:#b197fc; --s3:#38c9b5; --done:#4cc38a; --shadow:none;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f1115; --surface:#161a20; --surface-2:#1c2129; --border:#2a313b;
+  --text:#e8ebf0; --muted:#9aa4b2; --accent:#7c9dff;
+  --s1:#7c9dff; --s2:#b197fc; --s3:#38c9b5; --done:#4cc38a; --shadow:none;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif}
+a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+code{font:12.5px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:var(--surface-2);padding:1px 5px;border-radius:5px}
+.wrap{max-width:1040px;margin:0 auto;padding:40px 24px 80px}
+.top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
+h1{margin:0;font-size:30px;letter-spacing:-.02em}
+.sub{color:var(--muted);margin:6px 0 0;max-width:640px}
+.theme-btn{border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:10px;padding:6px 10px;font-size:13px;cursor:pointer}
+/* phase strip */
+.strip{margin:28px 0 8px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 20px;box-shadow:var(--shadow)}
+.strip .row{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-bottom:12px;flex-wrap:wrap;gap:8px}
+.chev{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:4px}
+.chev a{display:flex;flex-direction:column;align-items:center;gap:4px;text-decoration:none;color:var(--muted);font-size:11px;text-align:center}
+.chev a span.b{width:100%;height:10px;border-radius:999px;background:var(--c);opacity:.35}
+.chev a.done span.b{background:var(--done);opacity:1}
+.chev a:hover{color:var(--text)}
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:14px;font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin:22px 0 6px}
+.filters button{border:1px solid var(--border);background:var(--surface);color:var(--muted);border-radius:999px;padding:5px 12px;font-size:13px;cursor:pointer}
+.filters button.on{background:var(--text);color:var(--bg);border-color:var(--text)}
+/* timeline */
+.timeline{position:relative;padding-left:36px;margin-top:18px}
+.timeline:before{content:"";position:absolute;left:13px;top:10px;bottom:10px;width:2px;background:var(--border)}
+.phase{position:relative;background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--c);border-radius:12px;padding:16px 18px;margin-bottom:14px;box-shadow:var(--shadow);scroll-margin-top:20px}
+.phase .dot{position:absolute;left:-36px;top:14px;width:28px;height:28px;border-radius:50%;background:var(--surface);border:2.5px solid var(--c);display:grid;place-items:center;font:700 12px ui-monospace,Menlo,monospace;color:var(--c)}
+.phase.done .dot{background:var(--done);border-color:var(--done);color:#fff}
+.phase .h{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.phase h2{margin:0;font-size:18px}
+.phase .stream{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--c)}
+.phase .st{margin-left:auto;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:2px 8px;border-radius:6px;background:var(--surface-2);color:var(--muted)}
+.phase.done .st{background:color-mix(in srgb,var(--done) 15%,transparent);color:var(--done)}
+.phase .goal{color:var(--muted);margin:4px 0 10px;font-size:14px}
+.phase ul{margin:0;padding-left:18px;font-size:14px}
+.phase ul li{margin:2px 0}
+.gate{display:flex;align-items:center;gap:10px;margin-top:12px;padding:8px 12px;border:1px dashed var(--c);border-radius:10px;font-size:13.5px;background:color-mix(in srgb,var(--c) 7%,transparent)}
+.gate .d{width:10px;height:10px;transform:rotate(45deg);background:var(--c);flex:none;margin-left:2px}
+.later{margin-top:32px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px;box-shadow:var(--shadow)}
+.card h3{margin:0 0 8px;font-size:15px}
+.card ul{margin:0;padding-left:18px;color:var(--muted);font-size:14px}
+footer{margin-top:36px;color:var(--muted);font-size:13px;border-top:1px solid var(--border);padding-top:14px}
+@media (max-width:720px){
+  .wrap{padding:24px 16px 60px} .later{grid-template-columns:1fr}
+  .chev{grid-template-columns:repeat(5,minmax(0,1fr));row-gap:10px}
+  .phase .st{margin-left:0}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div>
+      <h1>JVM Time Machine · Roadmap</h1>
+      <p class="sub">From design to v1.0 in 10 phases. Each phase delivers something usable on its own and ends with an exit gate. Phases are in order, not to scale. Architecture: <a href="DESIGN.html">DESIGN.html</a>.</p>
+    </div>
+    <button class="theme-btn" id="themeBtn">◐ Theme</button>
+  </div>
+
+  <div class="strip">
+    <div class="row"><span><b id="doneCount">1</b> of 10 phases done</span><span>Updated 4 Nov 2026</span></div>
+    <div class="chev" id="chev"></div>
+    <div class="legend">
+      <span><i style="background:var(--done)"></i>Done</span>
+      <span><i style="background:var(--s1)"></i>Viewer (offline analysis)</span>
+      <span><i style="background:var(--s2)"></i>Agent (in-JVM capture)</span>
+      <span><i style="background:var(--s3)"></i>Platform (fleet, requests, v1.0)</span>
+    </div>
+  </div>
+
+  <div class="filters" id="filters">
+    <button class="on" data-f="all">All</button>
+    <button data-f="s1">Viewer</button>
+    <button data-f="s2">Agent</button>
+    <button data-f="s3">Platform</button>
+  </div>
+
+  <div class="timeline" id="phases"></div>
+
+  <div class="later">
+    <div class="card"><h3>Beyond v1.0</h3><ul>
+      <li>IntelliJ plugin: jump from a hot frame to source</li>
+      <li>Desktop wrapper (Tauri) if users ask</li>
+      <li>Heap dump analysis in the UI (dominators, leak suspects)</li>
+      <li>Virtual-thread pinning views (JDK 21+)</li>
+      <li>Grafana data source plugin</li></ul></div>
+    <div class="card"><h3>Open questions</h3><ul>
+      <li>OpenTelemetry Java agent dependency, or own context capture?</li>
+      <li>DuckDB first, or ClickHouse from the start?</li>
+      <li>Minimum agent JDK: 17 or 21?</li>
+      <li>Which LLM API is acceptable for incident data?</li>
+      <li>Final project name (trademark check)</li></ul></div>
+  </div>
+
+  <footer>JVM Time Machine · Roadmap · Markdown version: <a href="ROADMAP.md">ROADMAP.md</a></footer>
+</div>
+
+<script>
+var STREAM = {s1:"Viewer", s2:"Agent", s3:"Platform"};
+var PHASES = [
+  {n:1, s:"s1", done:true, title:"Design", goal:"Agree what we build and how before writing code.",
+   items:["Problem statement, goals and non-goals","Component architecture (agent, collector, clients)","Data model and storage approach","UI decision: browser (React + Canvas/WebGL), not Swing","Overhead budget, safety rules, prior art, risks"],
+   gate:"Design reviewed and agreed"},
+  {n:2, s:"s1", title:"Foundations", goal:"A buildable project and a core model of JFR data.",
+   items:["Multi-module build: tm-core, tm-agent, tm-collector, tm-cli, tm-ui","Java 21, Apache 2.0, CI pipeline","Demo app with planted problems (CPU, allocation, locks)","Core event model: .jfr → events + deduplicated stacks"],
+   gate:"demo.jfr is parsed into the event model in CI"},
+  {n:3, s:"s1", title:"Offline viewer", goal:"Ask questions of any .jfr file by time window.",
+   items:["Per-second aggregation: CPU, heap, GC, threads, allocation rate","Window queries: hot methods, allocations, contention, GC","tm-cli serve <file.jfr> with a JSON query API"],
+   gate:"API answers hot methods, GC and lock questions for any window"},
+  {n:4, s:"s1", title:"Timeline UI", goal:"See the recording on a timeline you can scrub.",
+   items:["Browser UI bundled into tm-cli","Overview lanes for CPU, heap, GC and threads","Timeline scrubber with detail panels","Interactive flame graph"],
+   gate:"UI explains all problems planted in demo.jfr"},
+  {n:5, s:"s1", title:"Time diff", goal:"Answer “what changed between A and B?”",
+   items:["Compare a normal window with a bad one","Differential flame graph and event-delta table","Shareable links to a window or a diff"],
+   gate:"Diff pinpoints a planted regression in a test recording"},
+  {n:6, s:"s2", title:"Always-on agent", goal:"Record continuously inside a running JVM.",
+   items:["Java agent (-javaagent or runtime attach), YAML config","Continuous JFR streaming with a custom profile","Rolling 30-minute disk buffer; JMX controls","Periodic thread, histogram and heap snapshots"],
+   gate:"Runs 24 hours in a test service with no errors"},
+  {n:7, s:"s2", title:"Incident capture", goal:"Catch incidents automatically, safely.",
+   items:["Trigger rules: GC pause, CPU, exception rate, latency","Freeze buffer, boost detail, write an incident bundle","Overhead benchmarks in CI; circuit breaker and kill switch"],
+   gate:"Measured overhead ≤ 2% on the benchmark suite"},
+  {n:8, s:"s3", title:"Collector & fleet", goal:"Many JVMs, one place to look.",
+   items:["tm-collector: ingest, Parquet/DuckDB storage, shared query API","Agent shipper with batching, backoff, bounded queue","Fleet overview and incident list","Incident reports; Slack and webhook alerts"],
+   gate:"3 teams run it in production for 2 weeks"},
+  {n:9, s:"s3", title:"Request context", goal:"From “the JVM was slow” to “this request was slow, and why”.",
+   items:["OpenTelemetry trace IDs on events; HTTP and JDBC events","Request timeline across threads, locks, SQL and GC","Optional async-profiler for wall-clock and native stacks"],
+   gate:"A slow request is fully explained from its trace ID"},
+  {n:10, s:"s3", title:"Intelligence & v1.0", goal:"Readable incident summaries and a production-ready release.",
+   items:["Opt-in AI incident summary","Redaction rules and privacy review","Docs, Docker images, Helm chart, ClickHouse option"],
+   gate:"v1.0.0 released"}
+];
+function esc(s){return s.replace(/[&<>]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;"}[c];});}
+var html="", chev="", done=0;
+PHASES.forEach(function(p){
+  if(p.done) done++;
+  chev+='<a href="#phase-'+p.n+'" class="'+(p.done?'done':'')+'" style="--c:var(--'+p.s+')"><span class="b"></span>'+p.n+'. '+esc(p.title)+'</a>';
+  html+='<section class="phase'+(p.done?' done':'')+'" id="phase-'+p.n+'" data-s="'+p.s+'" style="--c:var(--'+p.s+')">'
+    +'<div class="dot">'+(p.done?'✓':p.n)+'</div>'
+    +'<div class="h"><span class="stream">Phase '+p.n+' · '+STREAM[p.s]+'</span><span class="st">'+(p.done?'Done':'Planned')+'</span></div>'
+    +'<h2>'+esc(p.title)+'</h2><p class="goal">'+esc(p.goal)+'</p><ul>'
+    +p.items.map(function(i){return '<li>'+esc(i)+'</li>';}).join('')+'</ul>'
+    +'<div class="gate"><span class="d"></span><span><b>Exit gate:</b> '+esc(p.gate)+'</span></div></section>';
+});
+document.getElementById("phases").innerHTML=html;
+document.getElementById("chev").innerHTML=chev;
+document.getElementById("doneCount").textContent=done;
+document.querySelectorAll("#filters button").forEach(function(b){
+  b.addEventListener("click",function(){
+    document.querySelectorAll("#filters button").forEach(function(x){x.classList.toggle("on",x===b);});
+    var f=b.getAttribute("data-f");
+    document.querySelectorAll(".phase").forEach(function(s){s.style.display=(f==="all"||s.getAttribute("data-s")===f)?"":"none";});
+  });
+});
+(function(){
+  var root=document.documentElement, btn=document.getElementById('themeBtn');
+  try{var t=localStorage.getItem('tm-theme'); if(t) root.setAttribute('data-theme',t);}catch(e){}
+  btn.addEventListener('click',function(){
+    var cur=root.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');
+    var n=cur==='dark'?'light':'dark'; root.setAttribute('data-theme',n);
+    try{localStorage.setItem('tm-theme',n);}catch(e){}
+  });
+})();
+</script>
+</body>
+</html>
