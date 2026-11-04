@@ -8,7 +8,7 @@ Legend: ✅ done · ⬜ planned
 | # | Phase | Delivers | Exit gate |
 | --- | --- | --- | --- |
 | 1 | ✅ Design | Goals, architecture, UI decision, roadmap | Design reviewed and agreed |
-| 2 | ⬜ Foundations | Build, CI, core event model, demo app | `demo.jfr` parsed into the event model in CI |
+| 2 | ✅ Foundations | Build, CI, core event model, demo app | `demo.jfr` parsed into the event model in CI |
 | 3 | ⬜ Offline viewer | `tm-cli` + query API on a `.jfr` file | API answers hot methods, GC, locks per window |
 | 4 | ⬜ Timeline UI | Browser UI with scrubber and flame graphs | UI explains all problems planted in `demo.jfr` |
 | 5 | ⬜ Time diff | Compare two windows | Diff pinpoints a regression in a test recording |
@@ -30,7 +30,7 @@ Legend: ✅ done · ⬜ planned
 
 **Exit gate:** design reviewed and agreed.
 
-## 2. Foundations
+## 2. Foundations ✅
 
 - Gradle multi-module project: `tm-core`, `tm-agent`, `tm-collector`, `tm-cli`, `tm-ui`
 - Java 21 toolchain, Apache 2.0 licence, GitHub Actions CI

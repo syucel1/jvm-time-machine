@@ -118,7 +118,7 @@ footer{margin-top:36px;color:var(--muted);font-size:13px;border-top:1px solid va
       <li>Final project name (trademark check)</li></ul></div>
   </div>
 
-  <footer>JVM Time Machine · Roadmap · Markdown version: <a href="ROADMAP.md">ROADMAP.md</a></footer>
+  <footer>JVM Time Machine · Roadmap · Markdown version: <a href="https://github.com/syucel1/jvm-time-machine/blob/main/ROADMAP.md">ROADMAP.md</a></footer>
 </div>
 
 <script>
@@ -127,7 +127,7 @@ var PHASES = [
   {n:1, s:"s1", done:true, title:"Design", goal:"Agree what we build and how before writing code.",
    items:["Problem statement, goals and non-goals","Component architecture (agent, collector, clients)","Data model and storage approach","UI decision: browser (React + Canvas/WebGL), not Swing","Overhead budget, safety rules, prior art, risks"],
    gate:"Design reviewed and agreed"},
-  {n:2, s:"s1", title:"Foundations", goal:"A buildable project and a core model of JFR data.",
+  {n:2, s:"s1", done:true, title:"Foundations", goal:"A buildable project and a core model of JFR data.",
    items:["Multi-module build: tm-core, tm-agent, tm-collector, tm-cli, tm-ui","Java 21, Apache 2.0, CI pipeline","Demo app with planted problems (CPU, allocation, locks)","Core event model: .jfr → events + deduplicated stacks"],
    gate:"demo.jfr is parsed into the event model in CI"},
   {n:3, s:"s1", title:"Offline viewer", goal:"Ask questions of any .jfr file by time window.",
