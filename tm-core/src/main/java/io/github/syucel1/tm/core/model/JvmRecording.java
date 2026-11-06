@@ -57,6 +57,32 @@ public final class JvmRecording {
         return events.stream().filter(e -> e.type().equals(type));
     }
 
+    /**
+     * Events that start in {@code [fromNanos, toNanos)} (epoch nanoseconds), in start order.
+     * Uses binary search on the sorted event list, so it is cheap even for large recordings.
+     */
+    public List<TmEvent> eventsStartingBetween(long fromNanos, long toNanos) {
+        if (toNanos <= fromNanos) {
+            return List.of();
+        }
+        return events.subList(lowerBound(fromNanos), lowerBound(toNanos));
+    }
+
+    /** Index of the first event with {@code startNanos >= t}. */
+    private int lowerBound(long t) {
+        int lo = 0;
+        int hi = events.size();
+        while (lo < hi) {
+            int mid = (lo + hi) >>> 1;
+            if (events.get(mid).startNanos() < t) {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+        return lo;
+    }
+
     public StackTable stacks() {
         return stacks;
     }

@@ -2,7 +2,7 @@ plugins {
     application
 }
 
-description = "Command-line tool: inspect .jfr files (Phase 2), serve the UI (Phase 3+)"
+description = "Command-line tool: summarise, query and serve .jfr recordings"
 
 dependencies {
     implementation(project(":tm-core"))
@@ -16,4 +16,13 @@ application {
 // Resolve relative file arguments from the repository root, not from tm-cli/.
 tasks.named<JavaExec>("run") {
     workingDir = rootProject.projectDir
+    standardInput = System.`in`
+}
+
+val demoJfr = rootProject.layout.projectDirectory.file("demo/build/jfr/demo.jfr")
+
+tasks.test {
+    // The API tests serve demo.jfr (Phase 3 exit gate).
+    dependsOn(":demo:recordDemo")
+    systemProperty("tm.demoJfr", demoJfr.asFile.absolutePath)
 }

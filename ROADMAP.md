@@ -9,7 +9,7 @@ Legend: ✅ done · ⬜ planned
 | --- | --- | --- | --- |
 | 1 | ✅ Design | Goals, architecture, UI decision, roadmap | Design reviewed and agreed |
 | 2 | ✅ Foundations | Build, CI, core event model, demo app | `demo.jfr` parsed into the event model in CI |
-| 3 | ⬜ Offline viewer | `tm-cli` + query API on a `.jfr` file | API answers hot methods, GC, locks per window |
+| 3 | ✅ Offline viewer | `tm-cli` + query API on a `.jfr` file | API answers hot methods, GC, locks per window |
 | 4 | ⬜ Timeline UI | Browser UI with scrubber and flame graphs | UI explains all problems planted in `demo.jfr` |
 | 5 | ⬜ Time diff | Compare two windows | Diff pinpoints a regression in a test recording |
 | 6 | ⬜ Always-on agent | Agent with rolling buffer and snapshots | Runs 24 h in a test service with no errors |
@@ -39,7 +39,7 @@ Legend: ✅ done · ⬜ planned
 
 **Exit gate:** `demo.jfr` is parsed into the event model in CI.
 
-## 3. Offline viewer
+## 3. Offline viewer ✅
 
 - Per-second aggregation: CPU, heap, GC pauses, thread states, allocation rate
 - Window queries: hot methods, allocations, contention, GC for any time range

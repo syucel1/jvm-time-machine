@@ -14,6 +14,8 @@ import jdk.jfr.Event;
 import jdk.jfr.Label;
 import jdk.jfr.Name;
 import jdk.jfr.Recording;
+import jdk.jfr.Timespan;
+import jdk.jfr.Timestamp;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -32,12 +34,20 @@ class JfrReaderTest {
         String message;
         @Label("Count")
         int count;
+        @Label("Wait")
+        @Timespan(Timespan.MILLISECONDS)
+        long waitTime;
+        @Label("Deadline")
+        @Timestamp(Timestamp.MILLISECONDS_SINCE_EPOCH)
+        long deadline;
     }
 
     private static void emitHello(int i) {
         HelloEvent e = new HelloEvent();
         e.message = "hello";
         e.count = i;
+        e.waitTime = 5;
+        e.deadline = 1_700_000_000_000L;
         e.commit();
     }
 
@@ -75,6 +85,13 @@ class JfrReaderTest {
         StackTraceData stack = rec.stackOf(hellos.get(0));
         assertNotNull(stack);
         assertTrue(stack.contains(JfrReaderTest.class.getName() + ".emitHello"), "stack: " + stack.frames());
+    }
+
+    @Test
+    void convertsTimespansToNanosAndTimestampsToEpochNanos() throws Exception {
+        TmEvent hello = JfrReader.create().read(recordHelloEvents()).eventsOfType("tm.test.Hello").findFirst().orElseThrow();
+        assertEquals(5_000_000L, hello.attribute("waitTime"));
+        assertEquals(1_700_000_000_000L * 1_000_000L, hello.attribute("deadline"));
     }
 
     @Test
