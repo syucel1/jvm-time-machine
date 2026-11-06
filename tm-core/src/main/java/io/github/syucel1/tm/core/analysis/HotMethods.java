@@ -30,16 +30,24 @@ public final class HotMethods {
     private HotMethods() {
     }
 
-    /** Top methods by CPU samples ({@value #EXECUTION_SAMPLE}). */
+    /** Top methods by CPU samples ({@value #EXECUTION_SAMPLE}) over the whole recording. */
     public static List<MethodCount> top(JvmRecording recording, int limit) {
-        return top(recording, EXECUTION_SAMPLE, limit);
+        return top(recording, recording.events(), EXECUTION_SAMPLE, limit);
     }
 
-    /** Top methods by top-frame count for any stack-bearing event type. */
+    /** Top methods by top-frame count for any stack-bearing event type, over the whole recording. */
     public static List<MethodCount> top(JvmRecording recording, String eventType, int limit) {
+        return top(recording, recording.events(), eventType, limit);
+    }
+
+    /** Top methods by top-frame count among {@code events} of {@code eventType}. */
+    public static List<MethodCount> top(JvmRecording recording, List<TmEvent> events, String eventType, int limit) {
         Map<String, Long> counts = new HashMap<>();
         long total = 0;
-        for (TmEvent e : recording.eventsOfType(eventType).toList()) {
+        for (TmEvent e : events) {
+            if (!e.type().equals(eventType)) {
+                continue;
+            }
             StackTraceData stack = recording.stackOf(e);
             Frame top = stack == null ? null : stack.top();
             if (top == null) {

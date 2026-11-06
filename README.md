@@ -4,10 +4,10 @@
 
 [![Design](https://img.shields.io/badge/📐_Design-view_page-3b6cf6?style=for-the-badge)](https://syucel1.github.io/jvm-time-machine/DESIGN.html)
 [![Roadmap](https://img.shields.io/badge/🗺️_Roadmap-view_page-8b5cf6?style=for-the-badge)](https://syucel1.github.io/jvm-time-machine/ROADMAP.html)
-[![Status](https://img.shields.io/badge/status-phase_2_foundations-1f9d63?style=for-the-badge)](ROADMAP.md)
+[![Status](https://img.shields.io/badge/status-phase_3_offline_viewer-1f9d63?style=for-the-badge)](ROADMAP.md)
 [![CI](https://github.com/syucel1/jvm-time-machine/actions/workflows/ci.yml/badge.svg)](https://github.com/syucel1/jvm-time-machine/actions/workflows/ci.yml)
 
-**Status:** Phase 2 (Foundations) done: build, CI, demo app and the core JFR event model. Read the [design](https://syucel1.github.io/jvm-time-machine/DESIGN.html)
+**Status:** Phase 3 (Offline viewer) done: query any `.jfr` file by time window from the CLI or a JSON API. Read the [design](https://syucel1.github.io/jvm-time-machine/DESIGN.html)
 and [roadmap](https://syucel1.github.io/jvm-time-machine/ROADMAP.html) as web pages, or the [roadmap in Markdown](ROADMAP.md).
 
 ---
@@ -53,8 +53,8 @@ It is meant to run in **production** with a steady-state overhead of **2% CPU or
 
 | Module | Role | Status |
 | --- | --- | --- |
-| `tm-core` | Event model, JFR parsing, aggregation, query engine (shared) | Event model + JFR reader |
-| `tm-cli` | Opens `.jfr` files and incident bundles offline; serves the UI locally | `summary` command |
+| `tm-core` | Event model, JFR parsing, aggregation, query engine (shared) | Event model, per-second timeline, window queries |
+| `tm-cli` | Opens `.jfr` files and incident bundles offline; serves the UI locally | `summary`, `window`, `serve` (JSON API) |
 | `tm-agent` | Java agent: continuous JFR, snapshots, triggers, ring buffer, shipper | Placeholder (Phase 6) |
 | `tm-collector` | Service: ingest, Parquet/DuckDB (ClickHouse for fleets), analyzer, query API | Placeholder (Phase 8) |
 | `tm-ui` | Browser UI (TypeScript, React, Canvas/WebGL): timeline, flame graphs, diffs, request view | Placeholder (Phase 4) |
@@ -77,32 +77,50 @@ Requires **JDK 21+**. The Gradle wrapper downloads Gradle itself.
 
 # Summarise any recording
 ./gradlew :tm-cli:run --args="summary demo/build/jfr/demo.jfr"
+
+# What happened between 2 s and 6 s?
+./gradlew :tm-cli:run --args="window demo/build/jfr/demo.jfr --from 2 --to 6"
+
+# Serve the recording as a JSON API on http://127.0.0.1:7070/
+./gradlew :tm-cli:run --args="serve demo/build/jfr/demo.jfr"
 ```
 
-Example output:
+Example `window` output:
 
 ```
-Recording   demo/build/jfr/demo.jfr
-Duration    8.2 s
-Events      31,820 (83 types)
-Threads     15
-Stacks      92 unique for 3,445 stack references (37.4x dedup)
+Window 2.0-6.0 s of demo.jfr (11,956 events, 300 CPU samples)
 
-Hot methods (jdk.ExecutionSample, top frame)
-   68.01%      489  io.github.syucel1.tm.demo.DemoApp.slowPrimeCount
-    7.23%       52  sun.security.provider.NativePRNG$RandomIO.implNextBytes
-    6.26%       45  java.lang.Integer.getChars
+Hot methods
+   67.00%      201  io.github.syucel1.tm.demo.DemoApp.slowPrimeCount
+    9.67%       29  sun.security.provider.NativePRNG$RandomIO.implNextBytes
+
+Allocations by site (first application frame)
+  100.00%     1.6 GB  io.github.syucel1.tm.demo.DemoApp.allocate
+
+Lock contention
+      5 x  total 2960.6 ms  max 1106.7 ms  io.github.syucel1.tm.demo.DemoApp.contended  [java.lang.Object]
+
+GC: 78 collections, 831.1 ms paused in total, longest pause 39.4 ms
 ```
+
+### JSON API (`tm-cli serve`)
+
+| Endpoint | Returns |
+| --- | --- |
+| `GET /api/recording` | File, start time, duration, event counts per type, thread names |
+| `GET /api/overview?from=&to=` | One bucket per second: JVM and machine CPU, heap used, threads, CPU samples, bytes allocated, GC pauses, lock wait time |
+| `GET /api/window?from=&to=&top=` | Hot methods, allocations by class and by application site, lock contention, GC summary, busiest threads |
+
+`from` and `to` are seconds since the recording start (both optional). The server binds to
+`127.0.0.1` by default; use `--host` and `--port` to change it.
 
 Use the core library directly:
 
 ```java
 JvmRecording rec = JfrReader.create().read(Path.of("app.jfr"));
-rec.countByType();                       // events per type
-HotMethods.top(rec, 10);                 // hottest methods by CPU samples
-rec.eventsOfType("jdk.JavaMonitorEnter") // lock waits, with thread and stack
-   .map(rec::stackOf)
-   .forEach(System.out::println);
+Timeline.of(rec).buckets();                                   // per-second overview
+WindowQuery.run(rec, Window.ofOffsets(rec, 2.0, 6.0), 10);    // what happened from 2 s to 6 s
+HotMethods.top(rec, 10);                                      // hottest methods overall
 ```
 
 ### Project layout
@@ -110,8 +128,8 @@ rec.eventsOfType("jdk.JavaMonitorEnter") // lock waits, with thread and stack
 ```
 .
 ├── demo/            demo app with planted problems + recordDemo task
-├── tm-core/         event model (TmEvent, StackTable, JvmRecording), JfrReader, analysis
-├── tm-cli/          command-line tool (tm-cli summary)
+├── tm-core/         event model, JfrReader, Timeline, WindowQuery, JSON writer
+├── tm-cli/          command-line tool and HTTP server (summary, window, serve)
 ├── tm-agent/        Java agent (placeholder until Phase 6)
 ├── tm-collector/    collector service (placeholder until Phase 8)
 ├── tm-ui/           browser UI (placeholder until Phase 4)
@@ -145,7 +163,7 @@ jcmd <pid> JFR.view hot-methods      # live, no file
 | --- | --- | --- | --- |
 | 1 | Design | Goals, architecture, UI decision, roadmap | ✅ Done |
 | 2 | Foundations | Build, CI, core event model, demo app | ✅ Done |
-| 3 | Offline viewer | `tm-cli` + query API on a `.jfr` file | Planned |
+| 3 | Offline viewer | `tm-cli` + query API on a `.jfr` file | ✅ Done |
 | 4 | Timeline UI | Browser UI with scrubber and flame graphs | Planned |
 | 5 | Time diff | Compare two time windows | Planned |
 | 6 | Always-on agent | Agent with rolling buffer and snapshots | Planned |

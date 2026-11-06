@@ -2,13 +2,10 @@ package io.github.syucel1.tm.core;
 
 import io.github.syucel1.tm.core.analysis.HotMethods;
 import io.github.syucel1.tm.core.analysis.RecordingSummary;
-import io.github.syucel1.tm.core.jfr.JfrReader;
 import io.github.syucel1.tm.core.model.JvmRecording;
 import io.github.syucel1.tm.core.model.StackTraceData;
 import io.github.syucel1.tm.core.model.ThreadInfo;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -17,7 +14,6 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * Phase 2 exit gate: {@code demo.jfr}, recorded from {@code DemoApp} by {@code :demo:recordDemo},
@@ -25,22 +21,10 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  */
 class DemoRecordingTest {
 
-    private static final String DEMO = "io.github.syucel1.tm.demo.DemoApp";
-
-    private static JvmRecording cached;
+    private static final String DEMO = DemoJfr.DEMO;
 
     private static JvmRecording demo() throws Exception {
-        if (cached == null) {
-            String prop = System.getProperty("tm.demoJfr");
-            Path file = prop == null ? null : Path.of(prop);
-            boolean present = file != null && Files.isRegularFile(file);
-            if (System.getenv("CI") != null) {
-                assertTrue(present, "demo.jfr must exist in CI: " + prop);
-            }
-            assumeTrue(present, "demo.jfr not found; run ./gradlew :demo:recordDemo");
-            cached = JfrReader.create().read(file);
-        }
-        return cached;
+        return DemoJfr.load();
     }
 
     @Test

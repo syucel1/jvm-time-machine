@@ -19,6 +19,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 
+import jdk.jfr.Timespan;
+import jdk.jfr.Timestamp;
 import jdk.jfr.ValueDescriptor;
 import jdk.jfr.consumer.RecordedClass;
 import jdk.jfr.consumer.RecordedClassLoader;
@@ -39,7 +41,8 @@ import jdk.jfr.consumer.RecordingFile;
  *
  * <p>Stack traces are deduplicated into a {@link StackTable}; threads are collected into a thread
  * table; other event fields become simple attributes (strings, numbers, booleans). Nested
- * structures without a simple form are dropped.
+ * structures without a simple form are dropped. Time-span fields are converted to nanoseconds
+ * and timestamp fields to nanoseconds since the Unix epoch (JFR stores both in internal ticks).
  */
 public final class JfrReader {
 
@@ -143,12 +146,32 @@ public final class JfrReader {
             if (MODEL_FIELDS.contains(name) || field.isArray()) {
                 continue;
             }
-            Object value = simplify(e.getValue(name));
+            Object value;
+            if (field.getAnnotation(Timespan.class) != null) {
+                // Raw values are in JFR ticks; always expose time spans as nanoseconds.
+                value = toNanos(e.getDuration(name));
+            } else if (field.getAnnotation(Timestamp.class) != null) {
+                Instant t = e.getInstant(name);
+                value = t == null ? null : toEpochNanos(t);
+            } else {
+                value = simplify(e.getValue(name));
+            }
             if (value != null) {
                 attrs.put(name, value);
             }
         }
         return attrs;
+    }
+
+    private static Long toNanos(Duration d) {
+        if (d == null) {
+            return null;
+        }
+        try {
+            return d.toNanos();
+        } catch (ArithmeticException overflow) {
+            return d.isNegative() ? Long.MIN_VALUE : Long.MAX_VALUE;
+        }
     }
 
     /** Converts a JFR value to a string, number or boolean, or {@code null} if it has no simple form. */

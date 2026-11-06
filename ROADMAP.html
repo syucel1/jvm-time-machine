@@ -130,7 +130,7 @@ var PHASES = [
   {n:2, s:"s1", done:true, title:"Foundations", goal:"A buildable project and a core model of JFR data.",
    items:["Multi-module build: tm-core, tm-agent, tm-collector, tm-cli, tm-ui","Java 21, Apache 2.0, CI pipeline","Demo app with planted problems (CPU, allocation, locks)","Core event model: .jfr → events + deduplicated stacks"],
    gate:"demo.jfr is parsed into the event model in CI"},
-  {n:3, s:"s1", title:"Offline viewer", goal:"Ask questions of any .jfr file by time window.",
+  {n:3, s:"s1", done:true, title:"Offline viewer", goal:"Ask questions of any .jfr file by time window.",
    items:["Per-second aggregation: CPU, heap, GC, threads, allocation rate","Window queries: hot methods, allocations, contention, GC","tm-cli serve <file.jfr> with a JSON query API"],
    gate:"API answers hot methods, GC and lock questions for any window"},
   {n:4, s:"s1", title:"Timeline UI", goal:"See the recording on a timeline you can scrub.",
