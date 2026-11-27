@@ -84,7 +84,7 @@ footer{margin-top:36px;color:var(--muted);font-size:13px;border-top:1px solid va
   </div>
 
   <div class="strip">
-    <div class="row"><span><b id="doneCount">1</b> of 10 phases done</span><span>Updated 4 Nov 2026</span></div>
+    <div class="row"><span><b id="doneCount">4</b> of 10 phases done</span><span>Updated 27 Nov 2026</span></div>
     <div class="chev" id="chev"></div>
     <div class="legend">
       <span><i style="background:var(--done)"></i>Done</span>
@@ -133,7 +133,7 @@ var PHASES = [
   {n:3, s:"s1", done:true, title:"Offline viewer", goal:"Ask questions of any .jfr file by time window.",
    items:["Per-second aggregation: CPU, heap, GC, threads, allocation rate","Window queries: hot methods, allocations, contention, GC","tm-cli serve <file.jfr> with a JSON query API"],
    gate:"API answers hot methods, GC and lock questions for any window"},
-  {n:4, s:"s1", title:"Timeline UI", goal:"See the recording on a timeline you can scrub.",
+  {n:4, s:"s1", done:true, title:"Timeline UI", goal:"See the recording on a timeline you can scrub.",
    items:["Browser UI bundled into tm-cli","Overview lanes for CPU, heap, GC and threads","Timeline scrubber with detail panels","Interactive flame graph"],
    gate:"UI explains all problems planted in demo.jfr"},
   {n:5, s:"s1", title:"Time diff", goal:"Answer “what changed between A and B?”",

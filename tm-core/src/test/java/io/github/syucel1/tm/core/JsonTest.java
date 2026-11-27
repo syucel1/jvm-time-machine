@@ -36,4 +36,11 @@ class JsonTest {
     void writesWholeDoublesAsIntegersAndNonFiniteAsNull() {
         assertEquals("[3,0.25,null,null,-1]", Json.write(List.of(3.0, 0.25, Double.NaN, Double.POSITIVE_INFINITY, -1.0)));
     }
+
+    @Test
+    void writesPrimitiveArrays() {
+        assertEquals("[1,-2,3]", Json.write(new long[] {1, -2, 3}));
+        assertEquals("[]", Json.write(new int[0]));
+        assertEquals("[0.5,2,null]", Json.write(new double[] {0.5, 2.0, Double.NaN}));
+    }
 }

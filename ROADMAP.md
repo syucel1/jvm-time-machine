@@ -10,7 +10,7 @@ Legend: ✅ done · ⬜ planned
 | 1 | ✅ Design | Goals, architecture, UI decision, roadmap | Design reviewed and agreed |
 | 2 | ✅ Foundations | Build, CI, core event model, demo app | `demo.jfr` parsed into the event model in CI |
 | 3 | ✅ Offline viewer | `tm-cli` + query API on a `.jfr` file | API answers hot methods, GC, locks per window |
-| 4 | ⬜ Timeline UI | Browser UI with scrubber and flame graphs | UI explains all problems planted in `demo.jfr` |
+| 4 | ✅ Timeline UI | Browser UI with scrubber and flame graphs | UI explains all problems planted in `demo.jfr` |
 | 5 | ⬜ Time diff | Compare two windows | Diff pinpoints a regression in a test recording |
 | 6 | ⬜ Always-on agent | Agent with rolling buffer and snapshots | Runs 24 h in a test service with no errors |
 | 7 | ⬜ Incident capture | Triggers, incident bundles, overhead control | Overhead ≤ 2% on the benchmark suite |
@@ -47,12 +47,21 @@ Legend: ✅ done · ⬜ planned
 
 **Exit gate:** the API answers hot methods, GC and lock questions for any window.
 
-## 4. Timeline UI
+## 4. Timeline UI ✅
 
 - Browser UI (Vite, React, TypeScript) bundled into `tm-cli`
 - Overview lanes for CPU, heap, GC and threads
 - Timeline scrubber with window selection and detail panels
 - Interactive flame graph (Canvas)
+- Done as: `FlameGraph` (merged call trees of CPU samples, allocated bytes or blocked time, with
+  pruning) and `ThreadLanes` (per-thread, per-second running/blocked/waiting) in `tm-core`, served
+  as `/api/flamegraph` and `/api/threads`. `tm-ui` draws overview and thread lanes with a draggable
+  window, plain-language findings (CPU hotspot, allocation pressure, lock contention, GC), a
+  zoomable, searchable flame graph and detail tables; the view is kept in the URL so it can be
+  shared. Gradle runs `npm ci` and `npm run build` and puts the result on `tm-cli`'s classpath
+  (`-Pui.skip=true` builds without Node.js). `TmServer` serves it with a CSP and now rejects
+  non-loopback `Host` headers (DNS rebinding). CI moved to `.github/workflows/ci.yml`, where
+  GitHub Actions runs it, and sets up Node.js.
 
 **Exit gate:** the UI explains all problems planted in `demo.jfr`.
 
