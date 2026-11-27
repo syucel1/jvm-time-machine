@@ -21,11 +21,18 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      # tm-ui (Vite + React) is built by Gradle and bundled into tm-cli.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: tm-ui/package-lock.json
+
       # Commits made on Windows can lose the executable bit.
       - name: Make gradlew executable
         run: chmod +x gradlew
 
-      # Builds all modules, records demo.jfr and runs the tests (Phase 2 exit gate).
+      # Builds all modules and the UI, records demo.jfr and runs the Java and UI tests.
       - name: Build and test
         run: ./gradlew build --no-daemon
 

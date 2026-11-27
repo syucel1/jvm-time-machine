@@ -38,7 +38,7 @@ public final class Main {
                                                             Hot methods, allocations, lock contention,
                                                             GC and threads between two points in time
               serve   <file.jfr> [--port 7070] [--host 127.0.0.1]
-                                                            Serve the recording over a JSON API
+                                                            Open the timeline UI and JSON API in a browser
               help                                          Show this help
               version                                       Show the version
 
@@ -156,7 +156,8 @@ public final class Main {
             server.start();
             out.printf(L, "Loaded %s: %,d events in %,d ms%n", rec.source().getFileName(),
                     rec.events().size(), (System.nanoTime() - t0) / 1_000_000);
-            out.printf(L, "Serving on %s  (Ctrl+C to stop)%n", server.url());
+            out.printf(L, "%s on %s  (Ctrl+C to stop)%n",
+                    TmServer.uiBundled() ? "Timeline UI" : "JSON API (built without the UI)", server.url());
             out.flush();
             CountDownLatch stop = new CountDownLatch(1);
             Runtime.getRuntime().addShutdownHook(new Thread(stop::countDown, "tm-cli-shutdown"));

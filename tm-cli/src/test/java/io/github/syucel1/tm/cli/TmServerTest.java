@@ -3,10 +3,12 @@ package io.github.syucel1.tm.cli;
 import io.github.syucel1.tm.core.jfr.JfrReader;
 import io.github.syucel1.tm.core.model.JvmRecording;
 
+import java.net.Socket;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -18,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
-/** Phase 3 exit gate over HTTP: the JSON API answers questions about demo.jfr. */
+/** Phase 3 and 4 over HTTP: the JSON API answers questions about demo.jfr and the UI is served. */
 class TmServerTest {
 
     private static final String DEMO = "io.github.syucel1.tm.demo.DemoApp";
@@ -93,9 +95,67 @@ class TmServerTest {
     }
 
     @Test
-    void indexPageLinksTheApi() throws Exception {
+    void apiIndexPageLinksTheApi() throws Exception {
+        HttpResponse<String> r = get("api");
+        assertEquals(200, r.statusCode());
+        assertTrue(r.body().contains("/api/window"));
+        assertTrue(r.body().contains("/api/flamegraph"));
+    }
+
+    @Test
+    void rootServesTheUiOrTheIndexPage() throws Exception {
         HttpResponse<String> r = get("");
         assertEquals(200, r.statusCode());
-        assertTrue(r.body().contains("api/window"));
+        assertTrue(r.headers().firstValue("Content-Type").orElse("").startsWith("text/html"));
+        if (TmServer.uiBundled()) {
+            assertTrue(r.body().contains("<div id=\"root\">"), "bundled tm-ui index.html");
+            assertTrue(r.headers().firstValue("Content-Security-Policy").isPresent());
+        } else {
+            assertTrue(r.body().contains("/api/window"));
+        }
+    }
+
+    @Test
+    void flameGraphEndpointBuildsATree() throws Exception {
+        HttpResponse<String> cpu = get("api/flamegraph?kind=cpu");
+        assertEquals(200, cpu.statusCode());
+        assertTrue(cpu.body().startsWith("{\"kind\":\"cpu\",\"unit\":\"samples\""), cpu.body());
+        assertTrue(cpu.body().contains("\"name\":\"" + DEMO + ".slowPrimeCount\""));
+        assertTrue(get("api/flamegraph?kind=lock&from=1&to=4").body().contains(DEMO + ".contended"));
+        String alloc = get("api/flamegraph?kind=alloc&thread=main").body();
+        assertTrue(alloc.contains("\"thread\":\"main\"") && alloc.contains(DEMO + ".allocate"), alloc);
+        assertEquals(400, get("api/flamegraph?kind=heap").statusCode());
+        assertEquals(400, get("api/flamegraph?minPercent=100").statusCode());
+    }
+
+    @Test
+    void threadsEndpointGivesLanes() throws Exception {
+        HttpResponse<String> r = get("api/threads?limit=10");
+        assertEquals(200, r.statusCode());
+        String body = r.body();
+        assertTrue(body.contains("\"bucketSeconds\":1"), body);
+        assertTrue(body.contains("\"name\":\"cpu-worker\""));
+        assertTrue(body.contains("\"name\":\"locker-0\""));
+        assertTrue(body.contains("\"blockedNanos\":["), "lanes are arrays");
+        assertEquals(400, get("api/threads?limit=0").statusCode());
+    }
+
+    @Test
+    void rejectsForeignHostHeadersAndUnsafePaths() throws Exception {
+        assertTrue(TmServer.loopbackHost("localhost:7070"));
+        assertTrue(TmServer.loopbackHost("127.0.0.1"));
+        assertTrue(TmServer.loopbackHost("[::1]:7070"));
+        assertTrue(!TmServer.loopbackHost("127.0.0.1.attacker.example"));
+        assertTrue(!TmServer.loopbackHost(null));
+        // HttpClient will not send a custom Host header, so speak HTTP over a plain socket.
+        try (Socket socket = new Socket("127.0.0.1", server.port())) {
+            socket.getOutputStream().write(("GET /api/recording HTTP/1.1\r\nHost: attacker.example\r\n"
+                    + "Connection: close\r\n\r\n").getBytes(StandardCharsets.US_ASCII));
+            String status = new String(socket.getInputStream().readAllBytes(), StandardCharsets.US_ASCII)
+                    .lines().findFirst().orElse("");
+            assertTrue(status.contains(" 403"), status);
+        }
+        assertEquals(404, get("assets/..%2F..%2Fsecret").statusCode());
+        assertEquals(404, get("nope.js").statusCode());
     }
 }

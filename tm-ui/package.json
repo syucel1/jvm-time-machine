@@ -1,0 +1,30 @@
+{
+  "name": "tm-ui",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Browser UI for JVM Time Machine: timeline scrubber, overview lanes, thread lanes and flame graphs",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20.19"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.3",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "typescript": "^6.0.3",
+    "vite": "^8.4.0",
+    "vitest": "^5.1.2"
+  }
+}

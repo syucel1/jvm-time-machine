@@ -11,8 +11,9 @@ import java.util.Map;
  * Minimal JSON writer with no dependencies, enough for the query API.
  *
  * <p>Supports {@code null}, strings, numbers, booleans, enums, {@link Instant} and {@link Path}
- * (as strings), maps (string keys), collections and arrays of objects, and records (as objects
- * whose keys are the record component names). Non-finite numbers become {@code null}.
+ * (as strings), maps (string keys), collections, object arrays, {@code long[]}, {@code int[]} and
+ * {@code double[]}, and records (as objects whose keys are the record component names).
+ * Non-finite numbers become {@code null}.
  */
 public final class Json {
 
@@ -64,6 +65,27 @@ public final class Json {
             sb.append(']');
         } else if (v instanceof Object[] a) {
             write(java.util.Arrays.asList(a), sb);
+        } else if (v instanceof long[] a) {
+            sb.append('[');
+            for (int i = 0; i < a.length; i++) {
+                sb.append(i == 0 ? "" : ",").append(a[i]);
+            }
+            sb.append(']');
+        } else if (v instanceof int[] a) {
+            sb.append('[');
+            for (int i = 0; i < a.length; i++) {
+                sb.append(i == 0 ? "" : ",").append(a[i]);
+            }
+            sb.append(']');
+        } else if (v instanceof double[] a) {
+            sb.append('[');
+            for (int i = 0; i < a.length; i++) {
+                if (i > 0) {
+                    sb.append(',');
+                }
+                number(a[i], sb);
+            }
+            sb.append(']');
         } else if (v.getClass().isRecord()) {
             record(v, sb);
         } else {
